@@ -1,11 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"os"
-  "bufio"
-	// "regexp"
+	"regexp"
 	"flag"
 )
 
@@ -28,21 +28,13 @@ var argSuppress *bool = flag.Bool("s", false, "suppress error messages for nonex
 var argNoMatch  *bool = flag.Bool("v", false, "select only lines that do not match the pattern(s)")
 var argEntire   *bool = flag.Bool("x", false, "select only lines that use all characters to match the pattern")
 
-func matchLine(text string, patterns *[]string) bool { 
-  /* Describe function here
-  returns true if text matches any pattern, false otherwise
-  */
-  fmt.Println(text)
-  return true
-}
-
 func main () { 
 
   flag.Var(&argPatternList, "e", "read one or more patterns from std-in")
   flag.Var(&argPatternFiles, "f", "read one or more patterns from file")
   flag.Parse()
 
-  if flag.NArg() == 0 { 
+  if flag.NArg() == 0 && argPatternList == nil && argPatternFiles == nil { 
     fmt.Println("Usage: go-grep [OPTIONS...] PATTERNS [FILE...]")
     os.Exit(0)
   }
@@ -51,12 +43,13 @@ func main () {
   var inputPatterns []string = argPatternList
 
   // get pattern(s) supplied with -f
-  addPattern := func(p string, ps *[]string) bool { 
-    *ps = append(*ps, p)
-    return true
-  }
   for _,fname := range argPatternFiles { 
-    actOnFile(openFile(fname), addPattern, &inputPatterns)
+    file := openFile(fname); defer file.Close()
+    scanner := bufio.NewScanner(file)
+    for scanner.Scan() { 
+      inputPatterns = append(inputPatterns, scanner.Text())
+    }
+    if err := scanner.Err(); err != nil && !*argSuppress { log.Fatal(err) }
   }
 
   // get input filename(s) and/or lingering solo pattern
@@ -70,15 +63,16 @@ func main () {
 
   // loop through files 
   for _,fname := range inputFiles {
-    if actOnFile(openFile(fname), matchLine, &inputPatterns) && *argNames { 
+    if grepFile(openFile(fname), inputPatterns) && *argNames { 
       fmt.Println(fname)
     }
   }
 
   // if no files, read from std-in
-  if inputFiles == nil {
-    actOnFile(os.Stdin, matchLine, &inputPatterns)
-    if *argNames { fmt.Println("(standard input)") } 
+  if len(inputFiles) == 0 {
+    if grepFile(os.Stdin, inputPatterns) && *argNames { 
+      fmt.Println("(standard input)")
+    }
   }
 
 }
@@ -90,19 +84,48 @@ func openFile(fname string) *os.File {
   return file
 }
 
-func actOnFile(file *os.File, action func(text string, patterns *[]string) bool, patterns *[]string) bool { 
-  /* applies action to each line of file 
-  action accepts the line as its first input
-  with patterns as remaining inputs
-  and returns true if any lines match a pattern, false otherwise
+func matchLine(text string, patterns []string) bool { 
+  /* checks if text contains a match for any pattern within patterns
+  returns true if so, otherwise false
   */
-  defer file.Close()
-  scanner := bufio.NewScanner(file)
+  // still need to implement i and x flags
+  // i is case-insensitive search
+  // x is using every character to match
   var isMatch bool = false
-  for scanner.Scan() {
-    if action(scanner.Text(), patterns) { isMatch = true }
+  for _,pattern := range patterns { 
+    matched, err := regexp.MatchString(pattern, text)
+    if err != nil { log.Fatal(err) }
+    if matched { isMatch = true; break } 
   }
-  if err := scanner.Err(); err != nil && !*argSuppress { log.Fatal(err) }
+  if *argNoMatch { isMatch = !isMatch } 
   return isMatch
 }
 
+func grepFile(file *os.File, patterns []string) bool { 
+  /* checks if each line in file matches any pattern in patterns
+  if true, prints the line according to CLI arguments
+  if at least one line in file matches, returns true, else false
+  */
+  var isMatch bool = false
+  var isPrint bool = !*argQuiet && !*argNames && !*argCount
+  var text string = "" 
+  var lineNum, matchCount uint = 0, 0
+
+  defer file.Close()
+  scanner := bufio.NewScanner(file)
+  for scanner.Scan() {
+
+    lineNum++
+    text = scanner.Text()
+
+    if matchLine(text, patterns) {
+      isMatch = true; matchCount++
+      if *argLines && isPrint { fmt.Printf("%v: ", lineNum) }
+      if isPrint { fmt.Println(text) }
+
+    }
+  }
+  if *argCount { fmt.Println(matchCount) }
+  if err := scanner.Err(); err != nil && !*argSuppress { log.Fatal(err) }
+  return isMatch
+}
