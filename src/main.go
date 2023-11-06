@@ -1,5 +1,8 @@
 package main
 
+// go-grep
+// basic grep implementation in Go
+
 import (
 	"bufio"
 	"fmt"
@@ -18,7 +21,7 @@ func (args *argList) Set(value string) error {
 } 
 var argPatternList, argPatternFiles argList
 
-// remaining CLI options
+// remaining CLI flags
 var argCount    *bool = flag.Bool("c", false, "write only count of lines to std-out")
 var argNames    *bool = flag.Bool("l", false, "write only the names of the files containing selected lines")
 var argQuiet    *bool = flag.Bool("q", false, "write nothing to std-out, regardless of matching lines")
@@ -88,13 +91,19 @@ func matchLine(text string, patterns []string) bool {
   /* checks if text contains a match for any pattern within patterns
   returns true if so, otherwise false
   */
-  // still need to implement i and x flags
-  // i is case-insensitive search
-  // x is using every character to match
   var isMatch bool = false
   for _,pattern := range patterns { 
-    matched, err := regexp.MatchString(pattern, text)
+
+    // case-sensitive by default
+    if *argCase { pattern = "(?i)" + pattern }
+
+    regex, err := regexp.Compile(pattern)
     if err != nil { log.Fatal(err) }
+    matched := regex.MatchString(text)
+
+    // does pattern occupy entire line
+    if *argEntire && regex.FindString(pattern) != text { matched = false } 
+
     if matched { isMatch = true; break } 
   }
   if *argNoMatch { isMatch = !isMatch } 
