@@ -22,6 +22,11 @@ func (args *argList) Set(value string) error {
 var argPatternList, argPatternFiles argList
 
 // remaining CLI flags
+
+// need to implement these two
+var argExtended *bool = flag.Bool("E", false, "match using extended regular expressions") 
+var argFixed    *bool = flag.Bool("F", false, "match using only fixed strings")
+
 var argCount    *bool = flag.Bool("c", false, "write only count of lines to std-out")
 var argNames    *bool = flag.Bool("l", false, "write only the names of the files containing selected lines")
 var argQuiet    *bool = flag.Bool("q", false, "write nothing to std-out, regardless of matching lines")
@@ -94,14 +99,14 @@ func matchLine(text string, patterns []string) bool {
   var isMatch bool = false
   for _,pattern := range patterns { 
 
-    // case-sensitive by default
+    // is pattern case-insensitive?
     if *argCase { pattern = "(?i)" + pattern }
 
     regex, err := regexp.Compile(pattern)
     if err != nil { log.Fatal(err) }
     matched := regex.MatchString(text)
 
-    // does pattern occupy entire line
+    // does pattern occupy entire line? 
     if *argEntire && regex.FindString(pattern) != text { matched = false } 
 
     if matched { isMatch = true; break } 
@@ -129,7 +134,7 @@ func grepFile(file *os.File, patterns []string) bool {
 
     if matchLine(text, patterns) {
       isMatch = true; matchCount++
-      if *argLines && isPrint { fmt.Printf("%v: ", lineNum) }
+      if *argLines && isPrint { fmt.Printf("%v:", lineNum) }
       if isPrint { fmt.Println(text) }
 
     }
