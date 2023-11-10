@@ -22,11 +22,6 @@ func (args *argList) Set(value string) error {
 var argPatternList, argPatternFiles argList
 
 // remaining CLI flags
-
-// need to implement these two
-var argExtended *bool = flag.Bool("E", false, "match using extended regular expressions") 
-var argFixed    *bool = flag.Bool("F", false, "match using only fixed strings")
-
 var argCount    *bool = flag.Bool("c", false, "write only count of lines to std-out")
 var argNames    *bool = flag.Bool("l", false, "write only the names of the files containing selected lines")
 var argQuiet    *bool = flag.Bool("q", false, "write nothing to std-out, regardless of matching lines")
